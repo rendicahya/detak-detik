@@ -2,9 +2,9 @@ const KEYS = {
   hours: 'detak-detik:hours',
   minutes: 'detak-detik:minutes',
   languageStyle: 'detak-detik:languageStyle',
-  theme: 'detak-detik:theme',
   soundOn: 'detak-detik:soundOn',
   minuteSnap: 'detak-detik:minuteSnap',
+  hourFormat: 'detak-detik:hourFormat',
 };
 
 function isStorageAvailable() {
@@ -49,16 +49,6 @@ export function saveLanguageStyle(style) {
   writeValue(KEYS.languageStyle, style);
 }
 
-export function loadTheme() {
-  if (!isStorageAvailable()) return null;
-  const value = window.localStorage.getItem(KEYS.theme);
-  return value === 'dark' || value === 'light' ? value : null;
-}
-
-export function saveTheme(theme) {
-  writeValue(KEYS.theme, theme);
-}
-
 export function loadSoundOn() {
   if (!isStorageAvailable()) return true;
   const value = window.localStorage.getItem(KEYS.soundOn);
@@ -76,4 +66,14 @@ export function loadMinuteSnap() {
 
 export function saveMinuteSnap(minuteSnap) {
   writeValue(KEYS.minuteSnap, minuteSnap);
+}
+
+export function loadHourFormat() {
+  if (!isStorageAvailable()) return '12';
+  const value = window.localStorage.getItem(KEYS.hourFormat);
+  return value === '24' ? '24' : '12';
+}
+
+export function saveHourFormat(hourFormat) {
+  writeValue(KEYS.hourFormat, hourFormat);
 }

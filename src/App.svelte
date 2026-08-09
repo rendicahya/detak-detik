@@ -2,7 +2,7 @@
   import AnalogClock from './lib/AnalogClock.svelte';
   import DigitalClock from './lib/DigitalClock.svelte';
   import TimeToWords from './lib/TimeToWords.svelte';
-  import ThemeToggle from './lib/ThemeToggle.svelte';
+  import SkyBackground from './lib/SkyBackground.svelte';
   import { timeToWords } from './lib/timeToWords.js';
   import {
     isSpeechSupported,
@@ -18,6 +18,8 @@
     saveSoundOn,
     loadMinuteSnap,
     saveMinuteSnap,
+    loadHourFormat,
+    saveHourFormat,
   } from './lib/storage.js';
 
   const initialPosition = loadClockPosition();
@@ -27,6 +29,11 @@
   let languageStyle = $state(loadLanguageStyle());
   let soundOn = $state(loadSoundOn());
   let minuteSnap = $state(loadMinuteSnap());
+  let hourFormat = $state(loadHourFormat());
+
+  // `hours` is always the real 0-23 hour; the word-reading and speech
+  // logic only understand the 12-position analog dial value.
+  let wordHour = $derived(hours % 12 === 0 ? 12 : hours % 12);
 
   let speechSupported = isSpeechSupported();
   let indonesianVoice = $state(null);
@@ -43,15 +50,15 @@
 
   function speakNow() {
     if (!canSpeak || !soundOn) return;
-    speak(timeToWords(hours, minutes, languageStyle), indonesianVoice);
+    speak(timeToWords(wordHour, minutes, languageStyle), indonesianVoice);
   }
 
   let speechTimer;
   $effect(() => {
-    const h = hours;
+    const h = wordHour;
     const m = minutes;
     const style = languageStyle;
-    saveClockPosition(h, m);
+    saveClockPosition(hours, m);
 
     clearTimeout(speechTimer);
     speechTimer = setTimeout(() => {
@@ -83,13 +90,20 @@
     }
   }
 
+  function setHourFormat(format) {
+    hourFormat = format;
+    saveHourFormat(format);
+  }
+
+  function toggleHourFormat() {
+    setHourFormat(hourFormat === '12' ? '24' : '12');
+  }
+
   function setToCurrentTime() {
     const now = new Date();
-    let h = now.getHours() % 12;
-    if (h === 0) h = 12;
     let m = now.getMinutes();
     if (minuteSnap === 5) m = Math.round(m / 5) * 5 % 60;
-    hours = h;
+    hours = now.getHours();
     minutes = m;
   }
 
@@ -127,6 +141,10 @@
         event.preventDefault();
         setMinuteSnap(5);
         break;
+      case 'j':
+        event.preventDefault();
+        toggleHourFormat();
+        break;
     }
   }
 
@@ -136,21 +154,22 @@
   });
 </script>
 
+<SkyBackground {hours} {minutes} />
+
 <div class="page">
   <header class="topbar">
     <div class="title-group">
       <h1>Detak Detik</h1>
       <p class="tagline">Yuk belajar membaca jam!</p>
     </div>
-    <ThemeToggle />
   </header>
 
   <main class="content">
     <AnalogClock bind:hours bind:minutes {minuteSnap} />
 
-    <DigitalClock {hours} {minutes} />
+    <DigitalClock bind:hours bind:minutes {hourFormat} {minuteSnap} />
 
-    <TimeToWords {hours} {minutes} style={languageStyle} />
+    <TimeToWords hours={wordHour} {minutes} style={languageStyle} />
 
     <div class="controls">
       <button
@@ -161,6 +180,25 @@
       >
         🕐 Waktu sekarang
       </button>
+
+      <div class="style-switch card" role="group" aria-label="Format jam">
+        <button
+          class:active={hourFormat === '12'}
+          onclick={() => setHourFormat('12')}
+          title="12 Jam (J)"
+          aria-keyshortcuts="J"
+        >
+          12 Jam
+        </button>
+        <button
+          class:active={hourFormat === '24'}
+          onclick={() => setHourFormat('24')}
+          title="24 Jam (J)"
+          aria-keyshortcuts="J"
+        >
+          24 Jam
+        </button>
+      </div>
 
       <div class="style-switch card" role="group" aria-label="Mode geser menit">
         <button
@@ -230,7 +268,7 @@
       {/if}
 
       <p class="hint shortcuts-hint">
-        Shortcut: F santai/formal · D tema · 1/5 mode menit · S waktu sekarang {#if speechSupported}· R putar ulang · M mute{/if}
+        Shortcut: F santai/formal · J 12/24 jam · 1/5 mode menit · S waktu sekarang {#if speechSupported}· R putar ulang · M mute{/if}
       </p>
     </div>
   </main>
@@ -248,7 +286,6 @@
   .topbar {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: 0.75rem;
   }
 
@@ -270,7 +307,9 @@
     padding: 0.4rem 0.8rem;
     font-size: 0.8rem;
     font-weight: 700;
-    color: var(--color-text);
+    /* Always dark: the accent bubble stays yellow in both day and night
+       palettes, so this shouldn't follow the day/night text swap. */
+    color: #3a2e2e;
     background: var(--color-accent);
     border-radius: 14px;
     box-shadow: var(--shadow-soft);

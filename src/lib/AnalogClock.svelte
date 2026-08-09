@@ -76,20 +76,45 @@
     };
   }
 
-  // Captured when an hour-hand drag starts, so the hand's fractional
-  // position (offset by the current minutes) doesn't cause the hour to
-  // jump the instant it's touched.
-  let hourDragOffset = 0;
+  // Hour drag tracks *cumulative* rotation rather than snapping to the
+  // nearest absolute position. A 12-position dial can't show AM/PM on its
+  // own, so simply mapping "landed on the 12 mark" to a fixed half (AM or
+  // PM) breaks at the wrap: dragging forward from 23:xx onto "12" is
+  // continuing into the next day (00:00), not jumping back to noon.
+  // Following the actual rotation direction/amount resolves that
+  // correctly, the same way the minute hand's carry-over works.
+  let hourDragStartHours = 0;
+  let hourDeltaHours = 0;
+  let lastHourAngle = 0;
 
   function handleHourAngle(angle) {
-    const adjusted = ((angle - hourDragOffset) % 360 + 360) % 360;
-    const hourIndex = Math.round(adjusted / 30) % 12;
-    hours = hourIndex === 0 ? 12 : hourIndex;
+    let delta = angle - lastHourAngle;
+    if (delta > 180) delta -= 360;
+    else if (delta < -180) delta += 360;
+    lastHourAngle = angle;
+    hourDeltaHours += delta / 30;
+
+    hours = ((hourDragStartHours + Math.round(hourDeltaHours)) % 24 + 24) % 24;
   }
 
+  // Minute drag tracks the *cumulative* rotation (not just the current
+  // angle), so looping the hand all the way around past 12 correctly
+  // carries an hour, same as the digital clock's +/- buttons.
+  let minuteDragStartHours = 0;
+  let minuteContinuous = 0;
+  let lastMinuteAngle = 0;
+
   function handleMinuteAngle(angle) {
-    const rawMinutes = Math.round(angle / 6) % 60;
-    minutes = Math.round(rawMinutes / minuteSnap) * minuteSnap % 60;
+    let delta = angle - lastMinuteAngle;
+    if (delta > 180) delta -= 360;
+    else if (delta < -180) delta += 360;
+    lastMinuteAngle = angle;
+    minuteContinuous += delta / 6;
+
+    const snapped = Math.round(minuteContinuous / minuteSnap) * minuteSnap;
+    const hourDelta = Math.floor(snapped / 60);
+    minutes = snapped - hourDelta * 60;
+    hours = ((minuteDragStartHours + hourDelta) % 24 + 24) % 24;
   }
 
   function endHourDrag() {
@@ -101,7 +126,11 @@
   function endMinuteDrag() {
     activeHand = null;
     bounceMinute = true;
-    setTimeout(() => (bounceMinute = false), 260);
+    if (hours !== minuteDragStartHours) bounceHour = true;
+    setTimeout(() => {
+      bounceMinute = false;
+      bounceHour = false;
+    }, 260);
   }
 </script>
 
@@ -109,7 +138,7 @@
   class="clock"
   viewBox="0 0 300 300"
   role="img"
-  aria-label="Jam analog, jarum jam menunjuk {hours}, jarum menit menunjuk {minutes}"
+  aria-label="Jam analog, jarum jam menunjuk {(hours % 12) || 12}, jarum menit menunjuk {minutes}"
 >
   <circle class="face" cx="150" cy="150" r="140" />
 
@@ -165,7 +194,9 @@
       onAngle: handleHourAngle,
       onStart: () => {
         activeHand = 'hour';
-        hourDragOffset = minutes * 0.5;
+        hourDragStartHours = hours;
+        hourDeltaHours = 0;
+        lastHourAngle = (hours % 12) * 30 + minutes * 0.5;
       },
       onEnd: endHourDrag,
     }}
@@ -178,7 +209,12 @@
     r="20"
     use:draggable={{
       onAngle: handleMinuteAngle,
-      onStart: () => (activeHand = 'minute'),
+      onStart: () => {
+        activeHand = 'minute';
+        minuteDragStartHours = hours;
+        minuteContinuous = minutes;
+        lastMinuteAngle = minutes * 6;
+      },
       onEnd: endMinuteDrag,
     }}
   />

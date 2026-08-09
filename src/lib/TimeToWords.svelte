@@ -20,5 +20,13 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    /* Sits on the sky background, which ranges from bright day to dark
+       night, so it needs its own opaque backing to stay readable at
+       every hour instead of just floating text. */
+    background: var(--color-card);
+    border-radius: 20px;
+    padding: 0.4rem 1.5rem;
+    box-shadow: var(--shadow-soft);
+    transform: translateX(10px);
   }
 </style>
