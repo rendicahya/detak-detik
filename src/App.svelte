@@ -150,6 +150,15 @@
     <TimeToWords {hours} {minutes} style={languageStyle} />
 
     <div class="controls">
+      <button
+        class="now-btn"
+        onclick={setToCurrentTime}
+        title="Atur ke waktu sekarang (S)"
+        aria-keyshortcuts="S"
+      >
+        🕐 Waktu sekarang
+      </button>
+
       <div class="style-switch card" role="group" aria-label="Mode geser menit">
         <button
           class:active={minuteSnap === 5}
@@ -168,15 +177,6 @@
           Per 1 Menit
         </button>
       </div>
-
-      <button
-        class="now-btn"
-        onclick={setToCurrentTime}
-        title="Atur ke waktu sekarang (S)"
-        aria-keyshortcuts="S"
-      >
-        🕐 Waktu sekarang
-      </button>
 
       <div class="style-switch card" role="group" aria-label="Gaya bahasa">
         <button
