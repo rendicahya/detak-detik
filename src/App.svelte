@@ -138,7 +138,10 @@
 
 <div class="page">
   <header class="topbar">
-    <h1>Detak Detik</h1>
+    <div class="title-group">
+      <h1>Detak Detik</h1>
+      <p class="tagline">Yuk belajar membaca jam!</p>
+    </div>
     <ThemeToggle />
   </header>
 
@@ -226,8 +229,8 @@
         {/if}
       {/if}
 
-      <p class="hint">
-        Pintasan: F santai/formal · D tema · 1/5 mode menit · S waktu sekarang {#if speechSupported}· R putar ulang · M mute{/if}
+      <p class="hint shortcuts-hint">
+        Shortcut: F santai/formal · D tema · 1/5 mode menit · S waktu sekarang {#if speechSupported}· R putar ulang · M mute{/if}
       </p>
     </div>
   </main>
@@ -246,11 +249,42 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .title-group {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
   }
 
   .topbar h1 {
     font-size: 1.6rem;
     color: var(--color-primary);
+  }
+
+  .tagline {
+    position: relative;
+    margin: 0;
+    padding: 0.4rem 0.8rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--color-text);
+    background: var(--color-accent);
+    border-radius: 14px;
+    box-shadow: var(--shadow-soft);
+  }
+
+  .tagline::before {
+    content: '';
+    position: absolute;
+    left: -7px;
+    top: 50%;
+    transform: translateY(-50%);
+    border-width: 6px 8px 6px 0;
+    border-style: solid;
+    border-color: transparent var(--color-accent) transparent transparent;
   }
 
   .content {
@@ -352,5 +386,11 @@
     color: var(--color-text-muted);
     text-align: center;
     margin: 0;
+  }
+
+  @media (pointer: coarse) {
+    .shortcuts-hint {
+      display: none;
+    }
   }
 </style>
