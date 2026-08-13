@@ -41,18 +41,8 @@ export function timeToWords(hours, minutes, style = 'casual') {
     else if (minutes === 15) result = `jam ${hourWord} seperempat`;
     else if (minutes === 30) result = `jam setengah ${nextHourWord}`;
     else if (minutes === 45) result = `jam ${nextHourWord} kurang seperempat`;
-    else {
-      const remainder = 60 - minutes;
-      // "Kurang" only reads naturally with a round-ish remainder (kurang
-      // sepuluh, kurang lima) or a small one (kurang tiga). An odd
-      // remainder like 28 ("kurang dua puluh delapan") sounds awkward,
-      // so those fall back to counting forward from the current hour.
-      const kurangSoundsNatural = remainder <= 15 || remainder % 5 === 0;
-      result =
-        minutes < 30 || !kurangSoundsNatural
-          ? `jam ${hourWord} lebih ${numberToWords(minutes)}`
-          : `jam ${nextHourWord} kurang ${numberToWords(remainder)}`;
-    }
+    else if (minutes < 45) result = `jam ${hourWord} lebih ${numberToWords(minutes)}`;
+    else result = `jam ${nextHourWord} kurang ${numberToWords(60 - minutes)}`;
   } else {
     // formal
     result =

@@ -3,13 +3,19 @@
     hours = $bindable(10),
     minutes = $bindable(10),
     minuteSnap = 5,
+    // When false, renders as a plain picture of the time - no drag
+    // handles, no hand/number highlight state - for use as a quiz
+    // question or answer choice rather than the live, editable clock.
+    interactive = true,
+    // Shrinks the clock for use as a small answer-choice thumbnail.
+    compact = false,
   } = $props();
 
   let activeHand = $state(null); // 'hour' | 'minute' | null
   let bounceHour = $state(false);
   let bounceMinute = $state(false);
 
-  const CENTER = 150;
+  const CENTER = 210;
   const NUMBERS = Array.from({ length: 12 }, (_, i) => i + 1);
 
   function polarPoint(angleDeg, radius) {
@@ -136,11 +142,12 @@
 
 <svg
   class="clock"
-  viewBox="0 0 300 300"
+  class:compact
+  viewBox="0 0 420 420"
   role="img"
   aria-label="Jam analog, jarum jam menunjuk {(hours % 12) || 12}, jarum menit menunjuk {minutes}"
 >
-  <circle class="face" cx="150" cy="150" r="140" />
+  <circle class="face" cx="210" cy="210" r="140" />
 
   {#each Array.from({ length: 60 }, (_, i) => i) as tick (tick)}
     {#if tick % 5 !== 0}
@@ -163,61 +170,73 @@
     >
       {n}
     </text>
+    {@const minuteValue = (n % 12) * 5}
+    {@const minutePos = polarPoint(n * 30, 160)}
+    <text
+      class="minute-label"
+      class:active={activeHand === 'minute' && minutes === minuteValue}
+      x={minutePos.x}
+      y={minutePos.y}
+    >
+      {minuteValue === 0 ? 60 : minuteValue}
+    </text>
   {/each}
 
   <line
     class="hand hour-hand"
     class:bounce={bounceHour}
-    x1="150"
-    y1="150"
+    x1="210"
+    y1="210"
     x2={hourTip.x}
     y2={hourTip.y}
   />
   <line
     class="hand minute-hand"
     class:bounce={bounceMinute}
-    x1="150"
-    y1="150"
+    x1="210"
+    y1="210"
     x2={minuteTip.x}
     y2={minuteTip.y}
   />
 
-  <circle class="center-dot" cx="150" cy="150" r="9" />
+  <circle class="center-dot" cx="210" cy="210" r="12" />
 
-  <circle
-    class="handle handle-hour"
-    class:active={activeHand === 'hour'}
-    cx={hourTip.x}
-    cy={hourTip.y}
-    r="22"
-    use:draggable={{
-      onAngle: handleHourAngle,
-      onStart: () => {
-        activeHand = 'hour';
-        hourDragStartHours = hours;
-        hourDeltaHours = 0;
-        lastHourAngle = (hours % 12) * 30 + minutes * 0.5;
-      },
-      onEnd: endHourDrag,
-    }}
-  />
-  <circle
-    class="handle handle-minute"
-    class:active={activeHand === 'minute'}
-    cx={minuteTip.x}
-    cy={minuteTip.y}
-    r="20"
-    use:draggable={{
-      onAngle: handleMinuteAngle,
-      onStart: () => {
-        activeHand = 'minute';
-        minuteDragStartHours = hours;
-        minuteContinuous = minutes;
-        lastMinuteAngle = minutes * 6;
-      },
-      onEnd: endMinuteDrag,
-    }}
-  />
+  {#if interactive}
+    <circle
+      class="handle handle-hour"
+      class:active={activeHand === 'hour'}
+      cx={hourTip.x}
+      cy={hourTip.y}
+      r="22"
+      use:draggable={{
+        onAngle: handleHourAngle,
+        onStart: () => {
+          activeHand = 'hour';
+          hourDragStartHours = hours;
+          hourDeltaHours = 0;
+          lastHourAngle = (hours % 12) * 30 + minutes * 0.5;
+        },
+        onEnd: endHourDrag,
+      }}
+    />
+    <circle
+      class="handle handle-minute"
+      class:active={activeHand === 'minute'}
+      cx={minuteTip.x}
+      cy={minuteTip.y}
+      r="20"
+      use:draggable={{
+        onAngle: handleMinuteAngle,
+        onStart: () => {
+          activeHand = 'minute';
+          minuteDragStartHours = hours;
+          minuteContinuous = minutes;
+          lastMinuteAngle = minutes * 6;
+        },
+        onEnd: endMinuteDrag,
+      }}
+    />
+  {/if}
 </svg>
 
 <style>
@@ -231,10 +250,27 @@
     user-select: none;
   }
 
+  @media (min-width: 700px) {
+    .clock {
+      max-width: 480px;
+    }
+  }
+
+  .clock.compact {
+    max-width: 140px;
+  }
+
+  @media (min-width: 700px) {
+    .clock.compact {
+      max-width: 160px;
+    }
+  }
+
   .face {
     fill: var(--clock-face);
     stroke: var(--clock-border);
     stroke-width: 8;
+    transition: fill 0.4s ease, stroke 0.4s ease;
   }
 
   .tick-minor {
@@ -264,9 +300,25 @@
     font-size: 30px;
   }
 
+  .minute-label {
+    font-family: var(--font-main);
+    font-size: 15px;
+    font-weight: 700;
+    fill: var(--color-text-muted);
+    text-anchor: middle;
+    dominant-baseline: middle;
+    transition: fill 0.15s ease, font-size 0.15s ease;
+  }
+
+  .minute-label.active {
+    fill: var(--clock-minute-hand);
+    font-size: 19px;
+  }
+
   .hand {
     stroke-linecap: round;
-    transform-origin: 150px 150px;
+    transform-origin: 210px 210px;
+    transition: stroke 0.4s ease;
   }
 
   .hour-hand {
@@ -296,9 +348,10 @@
   }
 
   .center-dot {
-    fill: var(--clock-center);
+    fill: var(--clock-hour-hand);
     stroke: var(--clock-face);
     stroke-width: 3;
+    transition: fill 0.4s ease, stroke 0.4s ease;
   }
 
   .handle {

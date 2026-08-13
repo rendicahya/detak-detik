@@ -66,7 +66,7 @@
   }
 
   .digits {
-    font-size: clamp(2.5rem, 12vw, 3.5rem);
+    font-size: clamp(2.5rem, 12vw, 4.5rem);
     font-weight: 800;
     text-align: center;
     color: var(--color-text);
@@ -76,7 +76,7 @@
   }
 
   .colon {
-    font-size: clamp(2.5rem, 12vw, 3.5rem);
+    font-size: clamp(2.5rem, 12vw, 4.5rem);
     font-weight: 800;
     color: var(--color-secondary-dark);
     animation: blink 2s step-start infinite;

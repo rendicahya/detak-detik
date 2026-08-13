@@ -10,7 +10,7 @@
 
 <style>
   .time-words {
-    font-size: clamp(1.3rem, 5vw, 1.8rem);
+    font-size: clamp(1.3rem, 5vw, 2.3rem);
     line-height: 1.3;
     font-weight: 700;
     text-align: center;

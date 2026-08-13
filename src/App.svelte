@@ -3,7 +3,11 @@
   import DigitalClock from './lib/DigitalClock.svelte';
   import TimeToWords from './lib/TimeToWords.svelte';
   import SkyBackground from './lib/SkyBackground.svelte';
+  import Quiz from './lib/Quiz.svelte';
+  import MultipleChoiceQuiz from './lib/MultipleChoiceQuiz.svelte';
   import { timeToWords } from './lib/timeToWords.js';
+  import { generateQuizTarget, isQuizAnswerCorrect } from './lib/quiz.js';
+  import { generateMcqQuestion, sameTime } from './lib/mcqQuiz.js';
   import {
     isSpeechSupported,
     findIndonesianVoice,
@@ -107,10 +111,108 @@
     minutes = m;
   }
 
+  let quizActive = $state(false);
+  let quizTarget = $state(null);
+  let quizScore = $state(0);
+  let quizFeedback = $state(null); // 'correct' | 'wrong' | null
+  let quizFeedbackTimer;
+
+  function speakQuiz(text) {
+    if (canSpeak && soundOn) speak(text, indonesianVoice);
+  }
+
+  function nextQuizTarget() {
+    quizTarget = generateQuizTarget(minuteSnap, quizTarget);
+    quizFeedback = null;
+    speakQuiz(
+      `Coba atur ke ${timeToWords(quizTarget.hours, quizTarget.minutes, languageStyle)}`
+    );
+  }
+
+  function startQuiz() {
+    quizActive = true;
+    quizScore = 0;
+    nextQuizTarget();
+  }
+
+  function checkQuizAnswer() {
+    if (!quizActive || !quizTarget) return;
+    clearTimeout(quizFeedbackTimer);
+
+    if (isQuizAnswerCorrect(quizTarget, wordHour, minutes)) {
+      quizFeedback = 'correct';
+      quizScore += 1;
+      speakQuiz('Hore, benar sekali!');
+      quizFeedbackTimer = setTimeout(nextQuizTarget, 1600);
+    } else {
+      quizFeedback = 'wrong';
+      speakQuiz('Coba lagi ya!');
+      quizFeedbackTimer = setTimeout(() => (quizFeedback = null), 1200);
+    }
+  }
+
+  function exitQuiz() {
+    quizActive = false;
+    quizTarget = null;
+    quizFeedback = null;
+    clearTimeout(quizFeedbackTimer);
+  }
+
+  function toggleQuiz() {
+    if (quizActive) exitQuiz();
+    else startQuiz();
+  }
+
+  // Multiple-choice quiz: a separate page from the main clock, so it
+  // gets its own top-level view state instead of living inside .content.
+  let mcqPage = $state(false);
+  let mcqQuestion = $state(null);
+  let mcqScore = $state(0);
+  let mcqTotal = $state(0);
+  let mcqAdvanceTimer;
+
+  function nextMcqQuestion() {
+    mcqQuestion = generateMcqQuestion(minuteSnap);
+  }
+
+  function openMcqQuiz() {
+    mcqPage = true;
+    mcqScore = 0;
+    mcqTotal = 0;
+    nextMcqQuestion();
+  }
+
+  function closeMcqQuiz() {
+    mcqPage = false;
+    clearTimeout(mcqAdvanceTimer);
+  }
+
+  function answerMcq(choice) {
+    if (!mcqQuestion) return;
+    clearTimeout(mcqAdvanceTimer);
+
+    mcqTotal += 1;
+    if (sameTime(choice, mcqQuestion.target)) {
+      mcqScore += 1;
+      speakQuiz('Hore, benar sekali!');
+    } else {
+      speakQuiz('Yah, kurang tepat. Coba lagi ya!');
+    }
+    mcqAdvanceTimer = setTimeout(nextMcqQuestion, 1600);
+  }
+
   function handleKeydown(event) {
     if (event.ctrlKey || event.altKey || event.metaKey) return;
     const target = event.target;
     if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA') return;
+
+    if (mcqPage) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeMcqQuiz();
+      }
+      return;
+    }
 
     switch (event.key.toLowerCase()) {
       case 'f':
@@ -145,6 +247,16 @@
         event.preventDefault();
         toggleHourFormat();
         break;
+      case 'q':
+        event.preventDefault();
+        toggleQuiz();
+        break;
+      case 'enter':
+        if (quizActive) {
+          event.preventDefault();
+          checkQuizAnswer();
+        }
+        break;
     }
   }
 
@@ -158,120 +270,143 @@
 
 <div class="page">
   <header class="topbar">
-    <div class="title-group">
-      <h1>Detak Detik</h1>
-      <p class="tagline">Yuk belajar membaca jam!</p>
-    </div>
+    <h1>Detak Detik</h1>
   </header>
 
-  <main class="content">
-    <AnalogClock bind:hours bind:minutes {minuteSnap} />
+  {#if mcqPage}
+    <MultipleChoiceQuiz
+      question={mcqQuestion}
+      score={mcqScore}
+      total={mcqTotal}
+      {minuteSnap}
+      onAnswer={answerMcq}
+      onExit={closeMcqQuiz}
+    />
+  {:else}
+    <main class="content">
+      <AnalogClock bind:hours bind:minutes {minuteSnap} />
 
-    <DigitalClock bind:hours bind:minutes {hourFormat} {minuteSnap} />
+      <DigitalClock bind:hours bind:minutes {hourFormat} {minuteSnap} />
 
-    <TimeToWords hours={wordHour} {minutes} style={languageStyle} />
+      <TimeToWords hours={wordHour} {minutes} style={languageStyle} />
 
-    <div class="controls">
-      <button
-        class="now-btn"
-        onclick={setToCurrentTime}
-        title="Atur ke waktu sekarang (S)"
-        aria-keyshortcuts="S"
-      >
-        🕐 Waktu sekarang
+      <Quiz
+        active={quizActive}
+        target={quizTarget}
+        score={quizScore}
+        feedback={quizFeedback}
+        {languageStyle}
+        onStart={startQuiz}
+        onCheck={checkQuizAnswer}
+        onExit={exitQuiz}
+      />
+
+      <button class="mcq-nav-btn" onclick={openMcqQuiz} title="Kuis Pilihan Ganda">
+        🧩 Kuis Pilihan Ganda
       </button>
 
-      <div class="style-switch card" role="group" aria-label="Format jam">
+      <div class="controls">
         <button
-          class:active={hourFormat === '12'}
-          onclick={() => setHourFormat('12')}
-          title="12 Jam (J)"
-          aria-keyshortcuts="J"
+          class="now-btn"
+          onclick={setToCurrentTime}
+          title="Atur ke waktu sekarang (S)"
+          aria-keyshortcuts="S"
         >
-          12 Jam
+          🕐 Waktu sekarang
         </button>
-        <button
-          class:active={hourFormat === '24'}
-          onclick={() => setHourFormat('24')}
-          title="24 Jam (J)"
-          aria-keyshortcuts="J"
-        >
-          24 Jam
-        </button>
-      </div>
 
-      <div class="style-switch card" role="group" aria-label="Mode geser menit">
-        <button
-          class:active={minuteSnap === 5}
-          onclick={() => setMinuteSnap(5)}
-          title="Per 5 Menit (5)"
-          aria-keyshortcuts="5"
-        >
-          Per 5 Menit
-        </button>
-        <button
-          class:active={minuteSnap === 1}
-          onclick={() => setMinuteSnap(1)}
-          title="Per 1 Menit (1)"
-          aria-keyshortcuts="1"
-        >
-          Per 1 Menit
-        </button>
-      </div>
-
-      <div class="style-switch card" role="group" aria-label="Gaya bahasa">
-        <button
-          class:active={languageStyle === 'casual'}
-          onclick={() => setLanguageStyle('casual')}
-          title="Santai (F)"
-          aria-keyshortcuts="F"
-        >
-          Santai
-        </button>
-        <button
-          class:active={languageStyle === 'formal'}
-          onclick={() => setLanguageStyle('formal')}
-          title="Formal (F)"
-          aria-keyshortcuts="F"
-        >
-          Formal
-        </button>
-      </div>
-
-      {#if speechSupported}
-        <div class="sound-controls">
+        <div class="style-switch card" role="group" aria-label="Format jam">
           <button
-            class="icon-btn"
-            onclick={toggleSound}
-            aria-label={soundOn ? 'Matikan suara' : 'Nyalakan suara'}
-            title={(soundOn ? 'Matikan suara' : 'Nyalakan suara') + ' (M)'}
-            aria-keyshortcuts="M"
+            class:active={hourFormat === '12'}
+            onclick={() => setHourFormat('12')}
+            title="12 Jam (J)"
+            aria-keyshortcuts="J"
           >
-            {soundOn ? '🔊' : '🔇'}
+            12 Jam
           </button>
           <button
-            class="icon-btn"
-            onclick={speakNow}
-            disabled={!canSpeak || !soundOn}
-            aria-label="Putar ulang suara"
-            title="Putar ulang suara (R)"
-            aria-keyshortcuts="R"
+            class:active={hourFormat === '24'}
+            onclick={() => setHourFormat('24')}
+            title="24 Jam (J)"
+            aria-keyshortcuts="J"
           >
-            🔁
+            24 Jam
           </button>
         </div>
-        {#if voiceCheckDone && !indonesianVoice}
-          <p class="hint">
-            Suara Bahasa Indonesia tidak tersedia di perangkat ini.
-          </p>
-        {/if}
-      {/if}
 
-      <p class="hint shortcuts-hint">
-        Shortcut: F santai/formal · J 12/24 jam · 1/5 mode menit · S waktu sekarang {#if speechSupported}· R putar ulang · M mute{/if}
-      </p>
-    </div>
-  </main>
+        <div class="style-switch card" role="group" aria-label="Mode geser menit">
+          <button
+            class:active={minuteSnap === 5}
+            onclick={() => setMinuteSnap(5)}
+            title="Per 5 Menit (5)"
+            aria-keyshortcuts="5"
+          >
+            Per 5 Menit
+          </button>
+          <button
+            class:active={minuteSnap === 1}
+            onclick={() => setMinuteSnap(1)}
+            title="Per 1 Menit (1)"
+            aria-keyshortcuts="1"
+          >
+            Per 1 Menit
+          </button>
+        </div>
+
+        <div class="style-switch card" role="group" aria-label="Gaya bahasa">
+          <button
+            class:active={languageStyle === 'casual'}
+            onclick={() => setLanguageStyle('casual')}
+            title="Santai (F)"
+            aria-keyshortcuts="F"
+          >
+            Santai
+          </button>
+          <button
+            class:active={languageStyle === 'formal'}
+            onclick={() => setLanguageStyle('formal')}
+            title="Formal (F)"
+            aria-keyshortcuts="F"
+          >
+            Formal
+          </button>
+        </div>
+
+        {#if speechSupported}
+          <div class="sound-controls">
+            <button
+              class="icon-btn"
+              onclick={toggleSound}
+              aria-label={soundOn ? 'Matikan suara' : 'Nyalakan suara'}
+              title={(soundOn ? 'Matikan suara' : 'Nyalakan suara') + ' (M)'}
+              aria-keyshortcuts="M"
+            >
+              {soundOn ? '🔊' : '🔇'}
+            </button>
+            <button
+              class="icon-btn"
+              onclick={speakNow}
+              disabled={!canSpeak || !soundOn}
+              aria-label="Putar ulang suara"
+              title="Putar ulang suara (R)"
+              aria-keyshortcuts="R"
+            >
+              🔁
+            </button>
+          </div>
+          {#if voiceCheckDone && !indonesianVoice}
+            <p class="hint">
+              Suara Bahasa Indonesia tidak tersedia di perangkat ini.
+            </p>
+          {/if}
+        {/if}
+
+        <p class="hint shortcuts-hint">
+          Shortcut: F santai/formal · J 12/24 jam · 1/5 mode menit · S waktu sekarang · Q kuis{#if quizActive} · Enter cek jawaban{/if} {#if speechSupported}· R putar ulang · M mute{/if}
+        </p>
+      </div>
+    </main>
+  {/if}
 </div>
 
 <style>
@@ -283,47 +418,28 @@
     gap: 0.75rem;
   }
 
+  /* The mountain/tree scenery is pinned to the bottom of the viewport
+     behind everything, but on phones the stacked control cards are tall
+     enough to scroll past the full viewport height and cover it edge to
+     edge. Reserve empty space the size of that scenery strip at the end
+     of the page so it has a spot to actually show through. */
+  @media (max-width: 700px) {
+    .page {
+      padding-bottom: max(22vh, 140px);
+    }
+  }
+
   .topbar {
     display: flex;
     align-items: center;
     gap: 0.75rem;
   }
 
-  .title-group {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-  }
-
   .topbar h1 {
     font-size: 1.6rem;
-    color: var(--color-primary);
-  }
-
-  .tagline {
-    position: relative;
-    margin: 0;
-    padding: 0.4rem 0.8rem;
-    font-size: 0.8rem;
-    font-weight: 700;
-    /* Always dark: the accent bubble stays yellow in both day and night
-       palettes, so this shouldn't follow the day/night text swap. */
-    color: #3a2e2e;
-    background: var(--color-accent);
-    border-radius: 14px;
-    box-shadow: var(--shadow-soft);
-  }
-
-  .tagline::before {
-    content: '';
-    position: absolute;
-    left: -7px;
-    top: 50%;
-    transform: translateY(-50%);
-    border-width: 6px 8px 6px 0;
-    border-style: solid;
-    border-color: transparent var(--color-accent) transparent transparent;
+    color: var(--color-heading);
+    text-shadow: 0 2px 8px var(--shadow-color);
+    transition: color 0.4s ease;
   }
 
   .content {
@@ -336,6 +452,13 @@
     max-width: 420px;
     width: 100%;
     margin: 0 auto;
+  }
+
+  @media (min-width: 700px) {
+    .content {
+      max-width: 600px;
+      gap: 1.4rem;
+    }
   }
 
   .controls {
@@ -388,6 +511,24 @@
   }
 
   .now-btn:active {
+    transform: scale(0.95);
+  }
+
+  .mcq-nav-btn {
+    border: none;
+    background: var(--color-secondary);
+    color: #ffffff;
+    font-weight: 700;
+    font-family: inherit;
+    font-size: 1rem;
+    padding: 0.7rem 1.4rem;
+    border-radius: 20px;
+    cursor: pointer;
+    box-shadow: var(--shadow-soft);
+    transition: transform 0.1s ease;
+  }
+
+  .mcq-nav-btn:active {
     transform: scale(0.95);
   }
 
